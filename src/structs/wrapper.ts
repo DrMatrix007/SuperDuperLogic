@@ -1,4 +1,7 @@
-class Wrapper extends StorableObject{
+import { Step } from "./step";
+import { StorableObject } from "./StorableObject";
+
+export class Wrapper extends StorableObject {
     private root:Step;
 
     constructor(name:string,description:string,step:Step) {

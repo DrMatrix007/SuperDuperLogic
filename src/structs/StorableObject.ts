@@ -1,4 +1,4 @@
-class StorableObject {
+export class StorableObject {
     protected name : string;
     protected description: string;
 

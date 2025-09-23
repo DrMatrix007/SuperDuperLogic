@@ -1,34 +1,12 @@
-class Step extends StorableObject {
-    private id: number;
-    private static currentId : number = 1;
-    
-    constructor(name:string,description:string,branchCount:number = 1) {
-        super(name,description);
-        this.id = Step.currentId++;
-        this.branchCount = branchCount
-        this.nextSteps = []
-    }
+import { StepDescriptor } from "./step_descriptor";
 
-    /**
-     * Id
-     */
-    public Id() {
-        return this.id
-    }
-    
-    public get BranchCount() : number {
-        return this.branchCount
-    }
-    
-    public NextSteps(){
-        return this.nextSteps.map((step,branch)=>{return{step,branch}})
-    }
+export type Id = string;
 
-    public addStep(step:Step){
-        this.nextSteps.push(step)
-    }
+export function generateID(): Id {
+    return "n" + Math.random().toString();
+}
 
-    public replaceStep(step:Step,branch:number){
-        this.nextSteps[branch] = step
-    }
+export interface Step {
+    id(): Id;
+    nextSteps(): StepDescriptor[];
 }

@@ -1,3 +1,4 @@
+'use client'
 import Image from "next/image";
 
 export default function Home() {
@@ -10,7 +11,6 @@ export default function Home() {
           alt="Next.js logo"
           width={180}
           height={38}
-          priority
         />
         <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
           <li className="mb-2 tracking-[-.01em]">
