@@ -5,7 +5,7 @@ export class Wrapper extends StorableObject {
     private root:Step;
 
     constructor(name:string,description:string,step:Step) {
-        super(name,description);
+        super(name,description,"wrapper"); 
         this.root = step
     }
     

@@ -9,7 +9,7 @@ export class IfElseStep extends StorableObject implements Step {
     _id: Id;
 
     constructor(private trueCase: Id | null, private falseCase: Id | null) {
-        super(IfElseStep.Name, IfElseStep.Description);
+        super(IfElseStep.Name, IfElseStep.Description,'step');
         this._id = generateID();
     }
 

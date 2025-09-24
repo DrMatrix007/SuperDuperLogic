@@ -9,7 +9,7 @@ export class PrimitiveStep extends StorableObject implements Step {
     _id: Id;
 
     public constructor(private nextStep: Id | null) {
-        super(PrimitiveStep.Name, PrimitiveStep.Description);
+        super(PrimitiveStep.Name, PrimitiveStep.Description,'step');
         this._id = generateID();
         this.id();
     }
