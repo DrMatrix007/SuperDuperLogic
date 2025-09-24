@@ -1,193 +1,285 @@
-'use client'
-import React, { useState, useRef, useEffect } from "react";
-import { Step, Id, generateID } from "@/structs/step";
+"use client";
+
+import React, { useState, useRef } from "react";
+import { Step } from "@/structs/step";
 import { PrimitiveStep } from "@/structs/primitve_step";
+import { Side } from "@/structs/side";
+import { StepDescriptorData } from "@/structs/step_descriptor";
+import { ContextMenu } from "./context_menu";
+import { useContextMenu } from "./use_context_menu";
 
-interface StepPosition {
-    x: number;
-    y: number;
+interface NodeData {
+  step: Step;
+  x: number;
+  y: number;
 }
 
-interface StepNodeProps {
-    step: Step;
-    position: StepPosition;
-    onMove: (id: Id, pos: StepPosition) => void;
-    steps: Step[];
-    updateDescriptor: (sourceId: Id, descIdx: number, targetId: Id | null) => void;
+interface EdgeData {
+  id: string;
+  fromNode: string;
+  fromSide: Side;
+  toNode: string;
+  toSide: Side;
 }
 
-const StepNode: React.FC<StepNodeProps> = ({ step, position, onMove, steps, updateDescriptor }) => {
-    const nodeRef = useRef<HTMLDivElement>(null);
-    const [dragging, setDragging] = useState(false);
-    const [offset, setOffset] = useState({ x: 0, y: 0 });
-
-    const onMouseDown = (e: React.MouseEvent) => {
-        setDragging(true);
-        setOffset({ x: e.clientX - position.x, y: e.clientY - position.y });
-    };
-
-    const onMouseMove = (e: MouseEvent) => {
-        if (dragging) {
-            onMove(step.id(), { x: e.clientX - offset.x, y: e.clientY - offset.y });
-        }
-    };
-
-    const onMouseUp = () => setDragging(false);
-
-    useEffect(() => {
-        window.addEventListener("mousemove", onMouseMove);
-        window.addEventListener("mouseup", onMouseUp);
-        return () => {
-            window.removeEventListener("mousemove", onMouseMove);
-            window.removeEventListener("mouseup", onMouseUp);
-        };
-    });
-
-    return (
-        <div
-            ref={nodeRef}
-            onMouseDown={onMouseDown}
-            className={`
-                absolute cursor-move 
-                bg-gradient-to-br from-purple-400 to-pink-400 
-                text-white font-semibold 
-                rounded-xl shadow-2xl p-4 min-w-[160px] 
-                transition-transform duration-200
-                ${dragging ? "scale-105 shadow-3xl" : "hover:scale-105 hover:shadow-3xl"}
-            `}
-            style={{ left: position.x, top: position.y }}
-        >
-            <div className="text-lg mb-2">Step {step.id()}</div>
-            {step.nextSteps().map((desc, idx) => (
-                <div key={idx} className="mt-2">
-                    <label className="text-sm flex items-center gap-1">
-                        {desc.description} →
-                        <select
-                            className="ml-1 border border-gray-200 rounded px-1 text-black"
-                            value={desc.next ?? ""}
-                            onChange={(e) =>
-                                updateDescriptor(step.id(), idx, e.target.value || null)
-                            }
-                        >
-                            <option value="">None</option>
-                            {steps
-                                .filter((s) => s.id() !== step.id())
-                                .map((s) => (
-                                    <option key={s.id()} value={s.id()}>
-                                        Step {s.id()}
-                                    </option>
-                                ))}
-                        </select>
-                    </label>
-                </div>
-            ))}
-        </div>
-    );
-};
-
-interface CanvasProps {
-    steps: Step[];
+interface StepFlowProps {
+  steps: Step[];
+  darkMode?: boolean;
 }
 
-export const Canvas: React.FC<CanvasProps> = ({ steps: initialSteps }) => {
-    const [steps, setSteps] = useState<Step[]>(initialSteps);
+export default function Canvas({ steps: initialSteps, darkMode = true }: StepFlowProps) {
+  const [nodes, setNodes] = useState<NodeData[]>(() =>
+    initialSteps.map((s, i) => ({ step: s, x: 100 + i * 150, y: 100 + i * 100 }))
+  );
+  const [edges, setEdges] = useState<EdgeData[]>([]);
+  const [draggingNode, setDraggingNode] = useState<{ id: string; offsetX: number; offsetY: number } | null>(null);
+  const [creatingEdge, setCreatingEdge] = useState<{ fromNode: string; fromSide: Side; x: number; y: number } | null>(null);
+  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
 
-    const [positions, setPositions] = useState<Record<Id, StepPosition>>(
-        () =>
-            initialSteps.reduce((acc, step, idx) => {
-                acc[step.id()] = { x: 100 + idx * 200, y: 100 + idx * 150 };
-                return acc;
-            }, {} as Record<Id, StepPosition>)
-    );
+  const containerRef = useRef<HTMLDivElement>(null);
+  const nodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-    const updateDescriptor = (sourceId: Id, descIdx: number, targetId: Id | null) => {
-        const step = steps.find((s) => s.id() === sourceId);
-        if (!step) return;
-        step.nextSteps()[descIdx].set(targetId);
-        setSteps([...steps]); // Trigger re-render
+  const nodeMenu = useContextMenu();
+  const edgeMenu = useContextMenu<string>();
+
+  const onMouseDownNode = (e: React.MouseEvent, nodeId: string) => {
+    const node = nodes.find((n) => n.step.id() === nodeId);
+    if (!node) return;
+    setDraggingNode({ id: nodeId, offsetX: e.clientX - node.x, offsetY: e.clientY - node.y });
+  };
+
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (draggingNode) {
+      setNodes((prev) =>
+        prev.map((n) =>
+          n.step.id() === draggingNode.id
+            ? { ...n, x: e.clientX - draggingNode.offsetX, y: e.clientY - draggingNode.offsetY }
+            : n
+        )
+      );
+    }
+    if (creatingEdge) {
+      setCreatingEdge({ ...creatingEdge, x: e.clientX, y: e.clientY });
+    }
+  };
+
+  const onMouseUp = () => {
+    setDraggingNode(null);
+    setCreatingEdge(null);
+  };
+
+  const startEdge = (fromNode: string, fromSide: Side) => {
+    setCreatingEdge({ fromNode, fromSide, x: 0, y: 0 });
+  };
+
+  const completeEdge = (toNode: string, toSide: Side) => {
+    if (!creatingEdge) return;
+    const fromNodeObj = nodes.find((n) => n.step.id() === creatingEdge.fromNode);
+    const toNodeObj = nodes.find((n) => n.step.id() === toNode);
+    if (!fromNodeObj || !toNodeObj) return;
+
+    const descriptor = fromNodeObj.step.nextSteps().find((d) => d.data === null);
+    if (!descriptor) return;
+
+    const data: StepDescriptorData = {
+      next_id: toNodeObj.step.id(),
+      side_from: creatingEdge.fromSide,
+      side_to: toSide,
     };
+    descriptor.set(data);
 
-    const moveNode = (id: Id, pos: StepPosition) => {
-        setPositions((prev) => ({ ...prev, [id]: pos }));
-    };
+    setEdges((prev) => [
+      ...prev,
+      {
+        id: `${fromNodeObj.step.id()}-${creatingEdge.fromSide}-${toNodeObj.step.id()}-${toSide}`,
+        fromNode: fromNodeObj.step.id(),
+        fromSide: creatingEdge.fromSide,
+        toNode: toNodeObj.step.id(),
+        toSide,
+      },
+    ]);
 
-    const addStep = () => {
-        const newStep: Step = new PrimitiveStep(null);
-        setSteps([...steps, newStep]);
-        setPositions((prev) => ({
-            ...prev,
-            [newStep.id()]: { x: 100, y: 100 },
-        }));
-    };
+    setCreatingEdge(null);
+  };
 
-    return (
-        <div className="p-4">
-            <button
-                onClick={addStep}
-                className="mb-4 px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-lg transition-colors"
+  const removeEdge = (edgeId: string) => {
+    const edge = edges.find((e) => e.id === edgeId);
+    if (!edge) return;
+
+    const fromNode = nodes.find((n) => n.step.id() === edge.fromNode);
+    if (fromNode) {
+      const descriptor = fromNode.step.nextSteps().find(
+        (d) =>
+          d.data &&
+          d.data.next_id === edge.toNode &&
+          d.data.side_from === edge.fromSide &&
+          d.data.side_to === edge.toSide
+      );
+      if (descriptor) descriptor.set(null);
+    }
+
+    setEdges((prev) => prev.filter((e) => e.id !== edgeId));
+  };
+
+  const getSidePosition = (node: NodeData, side: Side) => {
+    const nodeEl = nodeRefs.current[node.step.id()];
+    if (!nodeEl) return { x: node.x + 75, y: node.y + 25 };
+    const rect = nodeEl.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+
+    switch (side) {
+      case "top": return { x: node.x + width / 2, y: node.y };
+      case "bottom": return { x: node.x + width / 2, y: node.y + height };
+      case "left": return { x: node.x, y: node.y + height / 2 };
+      case "right": return { x: node.x + width, y: node.y + height / 2 };
+    }
+  };
+
+  const addPrimitiveStep = () => {
+    if (!nodeMenu.menu) return;
+    const newStep = new PrimitiveStep();
+    setNodes((prev) => [
+      ...prev,
+      { step: newStep, x: nodeMenu.menu!.x - 75, y: nodeMenu.menu!.y - 25 },
+    ]);
+    nodeMenu.closeContextMenu();
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      onMouseMove={onMouseMove}
+      onMouseUp={onMouseUp}
+      onContextMenu={(e) => nodeMenu.openContextMenu(e)}
+      className={`w-full h-full relative overflow-hidden ${darkMode ? "bg-gray-900" : "bg-gray-100"} ${draggingNode ? "cursor-grabbing" : "cursor-default"}`}
+    >
+      {/* Edges */}
+      <svg className="absolute w-full h-full">
+        {edges.map((e) => {
+          const fromNode = nodes.find((n) => n.step.id() === e.fromNode);
+          const toNode = nodes.find((n) => n.step.id() === e.toNode);
+          if (!fromNode || !toNode) return null;
+          const fromPos = getSidePosition(fromNode, e.fromSide);
+          const toPos = getSidePosition(toNode, e.toSide);
+          const isHovered = hoveredEdgeId === e.id;
+
+          return (
+            <g
+              key={e.id}
+              onMouseEnter={() => setHoveredEdgeId(e.id)}
+              onMouseLeave={() => setHoveredEdgeId(null)}
+              onContextMenu={(evt) => edgeMenu.openContextMenu(evt, e.id)}
             >
-                Add Step
-            </button>
-            <div className="relative w-full h-[80vh] border border-gray-300 overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100">
-                <svg className="absolute top-0 left-0 w-full h-full pointer-events-none">
-                    <defs>
-                        <marker
-                            id="arrowhead"
-                            markerWidth="10"
-                            markerHeight="7"
-                            refX="10"
-                            refY="3.5"
-                            orient="auto"
-                        >
-                            <polygon points="0 0, 10 3.5, 0 7" fill="#374151" />
-                        </marker>
-                    </defs>
-                    {steps.map((step) =>
-                        step.nextSteps().map((desc, idx) => {
-                            if (!desc.next || !positions[desc.next]) return null;
+              <line
+                x1={fromPos.x} y1={fromPos.y} x2={toPos.x} y2={toPos.y}
+                stroke="transparent" strokeWidth={10} className="cursor-pointer"
+              />
+              <line
+                x1={fromPos.x} y1={fromPos.y} x2={toPos.x} y2={toPos.y}
+                stroke={isHovered ? "#f00" : darkMode ? "#0af" : "#007"} strokeWidth={2}
+                markerEnd="url(#arrowhead)"
+              />
+            </g>
+          );
+        })}
 
-                            const start = positions[step.id()];
-                            const end = positions[desc.next];
+        {creatingEdge && (() => {
+          const fromNode = nodes.find((n) => n.step.id() === creatingEdge.fromNode);
+          if (!fromNode) return null;
+          const fromPos = getSidePosition(fromNode, creatingEdge.fromSide);
+          return (
+            <line
+              x1={fromPos.x} y1={fromPos.y} x2={creatingEdge.x} y2={creatingEdge.y}
+              stroke="#0af" strokeWidth={2} strokeDasharray="5,5"
+            />
+          );
+        })()}
 
-                            const deltaX = end.x - start.x;
-                            const deltaY = end.y - start.y;
+        <defs>
+          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill={darkMode ? "#0af" : "#007"} />
+          </marker>
+        </defs>
+      </svg>
 
-                            // Dynamic control points
-                            const controlX1 = start.x + deltaX * 0.5;
-                            const controlY1 = start.y;
-                            const controlX2 = start.x + deltaX * 0.5;
-                            const controlY2 = end.y;
+      {/* Nodes */}
+      {nodes.map((node) => {
+        const fromUsed = node.step.nextSteps().some((d) => d.data !== null);
+        const toUsed = edges.some((e) => e.toNode === node.step.id());
 
-                            const pathD = `M ${start.x + 80} ${start.y + 40} C ${controlX1 + 80} ${controlY1 + 40}, ${controlX2 + 80} ${controlY2 + 40}, ${end.x + 80} ${end.y + 40}`;
+        return (
+          <div
+            key={node.step.id()}
+            ref={(el) => (nodeRefs.current[node.step.id()] = el)}
+            style={{ top: node.y, left: node.x }}
+            className={`p-10 absolute flex flex-col items-center justify-center rounded-md shadow-md select-none ${darkMode ? "bg-gray-800 text-white" : "bg-white text-black"} cursor-grab`}
+            onMouseDown={(e) => onMouseDownNode(e, node.step.id())}
+          >
+            <p>{node.step.id()}</p>
+            <p>{node.step.nextSteps()[0].data?.next_id}</p>
 
-                            return (
-                                <path
-                                    key={`${step.id()}-${idx}`}
-                                    d={pathD}
-                                    fill="none"
-                                    stroke="#4B5563"
-                                    strokeWidth={2}
-                                    markerEnd="url(#arrowhead)"
-                                    className="transition-all duration-50"
-                                />
-                            );
-                        })
-                    )}
-                </svg>
+            {/* From handles: hide if already used */}
+            {(!fromUsed) && (["top", "bottom", "left", "right"] as Side[]).map((side) => {
+              const positionClasses = {
+                top: "absolute -top-2 left-1/2 -translate-x-1/2",
+                bottom: "absolute -bottom-2 left-1/2 -translate-x-1/2",
+                left: "absolute -left-2 top-1/2 -translate-y-1/2",
+                right: "absolute -right-2 top-1/2 -translate-y-1/2",
+              };
+              return (
+                <div
+                  key={side}
+                  className={`w-5 h-5 bg-blue-500 rounded-full cursor-crosshair ${positionClasses[side]}`}
+                  onMouseDown={(e) => { e.stopPropagation(); startEdge(node.step.id(), side); }}
+                  onMouseUp={(e) => { e.stopPropagation(); if (creatingEdge) completeEdge(node.step.id(), side); }}
+                />
+              );
+            })}
 
-                {steps.map((step) => (
-                    <StepNode
-                        key={step.id()}
-                        step={step}
-                        position={positions[step.id()]}
-                        onMove={moveNode}
-                        steps={steps}
-                        updateDescriptor={updateDescriptor}
-                    />
-                ))}
-            </div>
-        </div>
-    );
-};
+            {/* To handle: always show, only one */}
+            {!toUsed && (
+              <div
+                className="w-5 h-5 bg-green-500 rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 cursor-crosshair"
+                onMouseUp={(e) => {
+                  e.stopPropagation();
+                  if (creatingEdge) completeEdge(node.step.id(), "top");
+                }}
+              />
+            )}
+          </div>
+        );
+      })}
 
-export default Canvas;
+      {/* Node Context Menu */}
+      {nodeMenu.menu && (
+        <ContextMenu data={nodeMenu.menu} onClose={nodeMenu.closeContextMenu}>
+          <div
+            className="p-1 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
+            onClick={() => {
+              addPrimitiveStep();
+              nodeMenu.closeContextMenu();
+            }}
+          >
+            Add PrimitiveStep
+          </div>
+        </ContextMenu>
+      )}
+
+      {/* Edge Context Menu */}
+      {edgeMenu.menu && (
+        <ContextMenu data={edgeMenu.menu} onClose={edgeMenu.closeContextMenu}>
+          <div
+            className="p-1 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
+            onClick={() => {
+              edgeMenu.closeContextMenu();
+              removeEdge(edgeMenu.menu!.data!);
+            }}
+          >
+            Delete Edge
+          </div>
+        </ContextMenu>
+      )}
+    </div>
+  );
+}

@@ -1,7 +1,14 @@
+import { Side } from "./side";
 import { Id } from "./step";
 
 export interface StepDescriptor {
-    next: Id | null;
+    data: StepDescriptorData | null,
     description: string;
-    set: (id: Id | null) => void;
+    set: (id: StepDescriptorData | null) => void;
+}
+
+export interface StepDescriptorData {
+    next_id: Id,
+    side_from: Side,
+    side_to: Side,
 }

@@ -1,6 +1,1 @@
-enum Side {
-    Top,
-    Bottom,
-    Left,
-    Right
-}
+export type Side = "top" | "bottom" | "right" | "left"; 

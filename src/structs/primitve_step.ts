@@ -1,5 +1,6 @@
+import { Side } from "./side";
 import { generateID, Id, Step } from "./step";
-import { StepDescriptor } from "./step_descriptor";
+import { StepDescriptor, StepDescriptorData } from "./step_descriptor";
 import { StorableObject } from "./StorableObject";
 
 export class PrimitiveStep extends StorableObject implements Step {
@@ -7,16 +8,18 @@ export class PrimitiveStep extends StorableObject implements Step {
     private static Description = 'a single step'
 
     _id: Id;
-
-    public constructor(private nextStep: Id | null) {
+    private nextStep: StepDescriptorData | null;
+    public constructor() {
         super(PrimitiveStep.Name, PrimitiveStep.Description);
         this._id = generateID();
-        this.id();
+        this.nextStep = null;
+
+
     }
 
 
     nextSteps(): StepDescriptor[] {
-        return [{ next: this.nextStep, description: "", set: id => this.nextStep = id }];
+        return [{ data: this.nextStep, description: "", set: data => this.nextStep = data }];
     }
     id(): Id {
         return this._id;
