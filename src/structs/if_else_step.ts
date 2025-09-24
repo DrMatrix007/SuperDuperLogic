@@ -1,5 +1,5 @@
 import { generateID, Id, Step } from "./step"
-import { StepDescriptor } from "./step_descriptor";
+import { StepDescriptor, StepDescriptorData } from "./step_descriptor";
 import { StorableObject } from "./StorableObject";
 
 export class IfElseStep extends StorableObject implements Step {
@@ -7,10 +7,13 @@ export class IfElseStep extends StorableObject implements Step {
     private static Description = 'a fucking if else. what did u expect?'
 
     _id: Id;
-
-    constructor(private trueCase: Id | null, private falseCase: Id | null) {
+    private trueCase: StepDescriptorData | null;
+    private falseCase: StepDescriptorData | null;
+    constructor() {
         super(IfElseStep.Name, IfElseStep.Description);
         this._id = generateID();
+        this.trueCase = null;
+        this.falseCase = null;
     }
 
     id(): string {
@@ -18,8 +21,8 @@ export class IfElseStep extends StorableObject implements Step {
     }
     nextSteps(): StepDescriptor[] {
         return [
-            { next: this.trueCase, description: "true", set: id => this.trueCase = id },
-            { next: this.falseCase, description: "false", set: id => this.falseCase = id },
+            { data: this.trueCase, description: "true", set: id => this.trueCase = id },
+            { data: this.falseCase, description: "false", set: id => this.falseCase = id },
         ]
     }
 }
