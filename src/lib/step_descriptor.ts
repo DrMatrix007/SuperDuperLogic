@@ -9,6 +9,4 @@ export interface StepDescriptor {
 
 export interface StepDescriptorData {
     next_id: Id,
-    side_from: Side,
-    side_to: Side,
 }

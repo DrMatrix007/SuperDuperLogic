@@ -9,11 +9,11 @@ export class IfElseStep extends StorableObject implements Step {
     _id: Id;
     private trueCase: StepDescriptorData | null;
     private falseCase: StepDescriptorData | null;
-    constructor() {
+    constructor(trueCase:StepDescriptorData | null = null,falseCase:StepDescriptorData | null = null) {
         super(IfElseStep.Name, IfElseStep.Description);
         this._id = generateID();
-        this.trueCase = null;
-        this.falseCase = null;
+        this.trueCase = trueCase;
+        this.falseCase = falseCase;
     }
 
     id(): string {

@@ -9,12 +9,10 @@ export class PrimitiveStep extends StorableObject implements Step {
 
     _id: Id;
     private nextStep: StepDescriptorData | null;
-    public constructor() {
+    public constructor(next:StepDescriptorData | null = null) {
         super(PrimitiveStep.Name, PrimitiveStep.Description);
         this._id = generateID();
-        this.nextStep = null;
-
-
+        this.nextStep = next;
     }
 
 
